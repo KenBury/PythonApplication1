@@ -1,19 +1,28 @@
 # html_report.py
-from asyncio import proactor_events
-from multiprocessing import Process, process
-from telnetlib import EL
+
+from os import path
 from base_classes import HTMLReportGenerator
 import pandas as pd
+import pytz
+from datetime import datetime
+import re
 
-class HTMLReportGeneratorImpl(HTMLReportGenerator):
-    def __init__(self, template_path: str):
-        self.template_path = template_path
+
+
+class HTMLReportGeneratorImpl:
+    def __init__(self):
+        # Initialization code without template_path
+        pass
 
     def generate_report(self, data: dict) -> str:
-        # Generate HTML report using the provided data and template
-        report = self._generate_html_report(data)
+        # Generate HTML report using the provided data
+        prepared_data = self._prepare_data(data)
+        report_df = self._merge_progressive_dataframes(prepared_data)
+        report = self._generate_html_report(report_df)
         return report
     
+
+
     def _prepare_data(self, data: dict) -> dict:
         prepared_data = {}
         for key, value in data.items():
@@ -23,23 +32,7 @@ class HTMLReportGeneratorImpl(HTMLReportGenerator):
                 prepared_data[key] = value
         return prepared_data
     
-    def convert_utc_to_eastern(Z_timestamp_str):
-        if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
-            return None
-        
-        # Convert the timestamp from string to datetime object
-        timestamp = datetime.strptime(Z_timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
-        
-        # Set the timezone to UTC
-        timestamp = timestamp.replace(tzinfo=pytz.UTC)
-        
-        # Convert the timezone to Eastern Time Zone
-        eastern = pytz.timezone('US/Eastern')
-        timestamp_eastern = timestamp.astimezone(eastern)
-        
-        # Return the timestamp in a normal datetime string format
-        return timestamp_eastern.strftime("%Y-%m-%d %H:%M:%S")
-
+  
     def _preprocess_dataframe(self, key: str, dataframe: pd.DataFrame) -> pd.DataFrame:
         if key == 'runbooks':
             # Specific preprocessing steps for the 'runbooks' dataframe
@@ -162,22 +155,56 @@ class HTMLReportGeneratorImpl(HTMLReportGenerator):
 
         processed_df.loc[:, 'CRQ_number'] = processed_df.apply(create_CRQ_number,axis=1)
         
-        # List of column names to apply the function to
-        columns_to_convert = ['timestamp_col1', 'timestamp_col2']
+        def convert_utc_to_eastern(Z_timestamp_str):
+            if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
+                return None
+            def parse_timestamp(timestamp_str):
+                formats_to_try = ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S']
+    
+                for date_format in formats_to_try:
+                    try:
+                        parsed_date = datetime.strptime(timestamp_str, date_format)
+                        return parsed_date
+                    except ValueError:
+                        pass
+    
+                # Handle case where none of the formats matched
+                raise ValueError("Timestamp format not recognized")
 
+            timestamp = parse_timestamp(Z_timestamp_str)
+            
+        
+            # Set the timezone to UTC
+            timestamp = timestamp.replace(tzinfo=pytz.UTC)
+        
+            # Convert the timezone to Eastern Time Zone
+            eastern = pytz.timezone('US/Eastern')
+            timestamp_eastern = timestamp.astimezone(eastern)
+        
+            # Return the timestamp in a normal datetime string format
+            return timestamp_eastern.strftime("%Y-%B-%d %H:%M")
+        
+        # List of column names to apply the function to
+        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled']
 
 
         # Apply the function to each column in the DataFrame
-        processed_df[columns_to_convert] = processed_df[columns_to_convert].applymap(convert_utc_to_eastern)
+        processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_to_eastern)
 
         
         return processed_df
     
     def _process_comments_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         # Group by 'runbook_id' and aggregate comments into an unindexed HTML list
-        #comments_rpt_df = comments_df.groupby('runbook_id')['comment_attributes_content'].agg(lambda x: '<br>'.join(f'{i+1}. {comment}' for i, comment in enumerate(x))).reset_index()
-        processed_df = dataframe.groupby('runbook_id')['comment_attributes_content'].agg(lambda x: '<ul>' + ''.join(f'<li>{comment}</li>' for comment in x) + '</ul>').reset_index()
-        # Refactored the comments_col_rename dictionary variable name to follow snake_case naming convention
+        # Define a custom aggregation function to format comments as HTML list
+        def format_comments_as_html_list(comments):
+            html_list = '<ul>' + ''.join([f'<li>{comment}</li>' for comment in comments]) + '</ul>'
+            return html_list
+        
+        print( dataframe.groupby('runbook_id')['comment_attributes_content'])
+        # Group by 'runbook_id' and aggregate 'comment_attributes_content' as HTML list
+        processed_df = dataframe.groupby('runbook_id')['comment_attributes_content'].agg(format_comments_as_html_list).reset_index()
+
         comments_column_rename = {
             "comment_attributes_content": "comments"
             }
@@ -317,13 +344,8 @@ class HTMLReportGeneratorImpl(HTMLReportGenerator):
         # Actual logic to generate the HTML report using data and template
         # Example implementation
         html_report = "<html><body>"
-        for key, value in data.items():
-            html_report += f"<h2>{key}</h2>"
-            if isinstance(value, pd.DataFrame):
-                html_report += value.to_html()
-            else:
-                html_report += str(value)
-        html_report += "</body></html>"
+       
+       
         folders = dataframe['folder_name'].unique()
 
         html_content = """
