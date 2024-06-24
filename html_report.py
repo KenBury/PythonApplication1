@@ -409,7 +409,7 @@ class HTMLReportGeneratorImpl:
 
             .dataframe {
 
-                border-collapse: colapse;
+                border-collapse: collapse;
 
                 width: 100%;
 
@@ -421,7 +421,7 @@ class HTMLReportGeneratorImpl:
 
             .dataframe th, .dataframe td {
             
-            border-collapse: colapse;
+            
 
             border: 1px solid black;
 
@@ -433,7 +433,7 @@ class HTMLReportGeneratorImpl:
 
             .dataframe th {
             
-            border-collapse: collapse;
+            
 
             background-color: #b3d4ff;
 
@@ -494,46 +494,78 @@ class HTMLReportGeneratorImpl:
             """
 
             for _, row in folder_df.iterrows():
+                runbook_tasks_count = row['runbook_tasks_count']
+                runbook_completed_tasks_count = row['runbook_completed_tasks_count']
+                
+                tasks_count_display = f"{runbook_completed_tasks_count}/{runbook_tasks_count}" if runbook_tasks_count and runbook_completed_tasks_count else f"0/{runbook_tasks_count}"
+                
+                code_installation_tasks_count = row['Code_installation_tasks_count']
+                code_installation_completed_tasks_count = row['Code_installation_completed_tasks_count']
+                code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count==" " else f""
+                
+                technical_certification_tasks_count = row['Technical_certification_tasks_count']
+                technical_certification_completed_tasks_count = row['Technical_certification_completed_tasks_count']
+                technical_certification_display = f"{technical_certification_completed_tasks_count}/{technical_certification_tasks_count}" if technical_certification_tasks_count and technical_certification_completed_tasks_count else f""
+                
+                business_certification_tasks_count = row['Business_certification_tasks_count']
+                business_certification_completed_tasks_count = row['Business_certification_completed_tasks_count']
+                business_certification_display = f"{business_certification_completed_tasks_count}/{business_certification_tasks_count}" if business_certification_tasks_count and business_certification_completed_tasks_count else f""
+                
+                # Separate list comprehension from join
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Code_installation_start_latest_planned'), ('D', 'Code_installation_start_latest_display')]]
 
+                # Join the formatted values
+                code_installation_start = "".join(formatted_values)
+                
+                # Separate list comprehension from join for code_installation_end
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Code_installation_end_latest_planned'), ('F', 'Code_installation_end_planned'), ('A', 'Code_installation_end_display')]]
+                
+                # Join the formatted values for code_installation_end
+                code_installation_end = "".join(formatted_values)
+                
+                # Separate list comprehension from join for technical_certification_start
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Technical_certification_start_latest_planned'), ('D', 'Technical_certification_start_latest_display')]]
+                
+                # Join the formatted values for technical_certification_start
+                technical_certification_start = "".join(formatted_values)
+                
+                # Separate list comprehension from join for technical_certification_end
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Technical_certification_end_latest_planned'), ('F', 'Technical_certification_end_planned'), ('A', 'Technical_certification_end_display')]]
+                
+                # Join the formatted values for technical_certification_end
+                technical_certification_end = "".join(formatted_values)
+                
+                # Separate list comprehension from join for business_certification_start
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Business_certification_start_latest_planned'), ('D', 'Business_certification_start_latest_display')]]
+                
+                # Join the formatted values for business_certification_start
+                business_certification_start = "".join(formatted_values)
+                
+                # Separate list comprehension from join for business_certification_end
+                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Business_certification_end_latest_planned'), ('F', 'Business_certification_end_planned'), ('A', 'Business_certification_end_display')]]
+                
+                # Join the formatted values for business_certification_end
+                business_certification_end = "".join(formatted_values)
                 html_content += f"""
-
                 <tr>
-
-                    <td>{row['CRQ_number']}</td>
-
-                    <td>{row['subfolder_name']}</td>
-
-                    <td>{row['runbook_http_link']}</td>
-
-                    <td>P:{row['runbook_start_planned']}<br>S:{row['runbook_start_scheduled']}<br>A:{row['runbook_start_actual']}</td>
-
-                    <td>P:{row['runbook_end_planned']}<br>F:{row['runbook_end_forecast']}<br>A:{row['runbook_end_actual']}</td>
-
-                    <td>{row['runbook_completed_tasks_count']}/{row['runbook_tasks_count']}</td>
-
-                    <td>P:{row['Code_installation_start_latest_planned']}<br>D:{row['Code_installation_start_latest_display']}</td>
-
-                    <td>P:{row['Code_installation_end_latest_planned']}<br>F:{row['Code_installation_end_planned']}<br>A:{row['Code_installation_end_display']}</td>
-
-                    <td>{row['Code_installation_completed_tasks_count']}/{row['Code_installation_tasks_count']}</td>
-
-                    <td>P:{row['Technical_certification_start_latest_planned']}<br>D:{row['Technical_certification_start_latest_display']}</td>
-
-                    <td>P:{row['Technical_certification_end_latest_planned']}<br>F:{row['Technical_certification_end_planned']}<br>A:{row['Technical_certification_end_display']}</td>
-
-                    <td>{row['Technical_certification_completed_tasks_count']}/{row['Technical_certification_tasks_count']}</td>
-
-                    <td>P:{row['Business_certification_start_latest_planned']}<br>D:{row['Business_certification_start_latest_display']}</td>
-
-                    <td>P:{row['Business_certification_end_latest_planned']}<br>F:{row['Business_certification_end_planned']}<br>A:{row['Business_certification_end_display']}</td>
-
-                    <td>{row['Business_certification_completed_tasks_count']}/{row['Business_certification_tasks_count']}</td>
-
-                    <td>{row['comments']}</td>
-
-                </tr>
-
-                """
+                <td>{row['CRQ_number']}</td>
+                <td>{row['subfolder_name']}</td>
+                <td>{row['runbook_http_link']}</td>
+                <td>P:{row['runbook_start_planned']}<br>S:{row['runbook_start_scheduled']}<br>A:{row['runbook_start_actual']}</td>
+                <td>P:{row['runbook_end_planned']}<br>F:{row['runbook_end_forecast']}<br>A:{row['runbook_end_actual']}</td>
+                <td>{tasks_count_display}</td>
+                <td>P:{row['Code_installation_start_latest_planned']}<br>D:{row['Code_installation_start_latest_display']}</td>
+                <td>P:{row['Code_installation_end_latest_planned']}<br>F:{row['Code_installation_end_planned']}<br>A:{row['Code_installation_end_display']}</td>
+                <td>{code_installation_display}</td>
+                <td>P:{row['Technical_certification_start_latest_planned']}<br>D:{row['Technical_certification_start_latest_display']}</td>
+                <td>P:{row['Technical_certification_end_latest_planned']}<br>F:{row['Technical_certification_end_planned']}<br>A:{row['Technical_certification_end_display']}</td>
+                <td>{technical_certification_display}</td>
+                <td>P:{row['Business_certification_start_latest_planned']}<br>D:{row['Business_certification_start_latest_display']}</td>
+                <td>P:{row['Business_certification_end_latest_planned']}<br>F:{row['Business_certification_end_planned']}<br>A:{row['Business_certification_end_display']}</td>
+                <td>{business_certification_display}</td>
+                <td>{row['comments']}</td>
+    </tr>
+    """
 
             html_content += """
 
