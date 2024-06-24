@@ -25,8 +25,11 @@ def main():
         "folders": folders_df
     } 
     # Usage of the HTML report generator and email sender
-    report = html_report_generator.generate_report(data)
-    email_sender.send_email('recipient@example.com', 'Report', report)
+    html_report = html_report_generator.generate_report(data)
+    with open('final_report.html', 'w') as file:
+        file.write(html_report)
+    
+    email_sender.send_email('recipient@example.com', 'Report', html_report)
 
 if __name__ == "__main__":
     main()
