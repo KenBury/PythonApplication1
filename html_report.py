@@ -1,5 +1,6 @@
 # html_report.py
 
+from multiprocessing import Process, process
 from os import path
 from base_classes import HTMLReportGenerator
 import pandas as pd
@@ -16,9 +17,9 @@ class HTMLReportGeneratorImpl:
 
     def generate_report(self, data: dict) -> str:
         # Generate HTML report using the provided data
-        prepared_data = self._prepare_data(data)
-        report_df = self._merge_progressive_dataframes(prepared_data)
-        report = self._generate_html_report(report_df)
+        merged_df = self._merge_progressive_dataframes(data)
+        print(f'generate report {merged_df.columns}')
+        report = self._generate_html_report(merged_df)
         return report
     
 
@@ -26,10 +27,13 @@ class HTMLReportGeneratorImpl:
     def _prepare_data(self, data: dict) -> dict:
         prepared_data = {}
         for key, value in data.items():
+            print(f'prepare_data: {key}')
             if isinstance(value, pd.DataFrame):
                 prepared_data[key] = self._preprocess_dataframe(key, value)
             else:
                 prepared_data[key] = value
+        
+        print('prepared_data processing done')
         return prepared_data
     
   
@@ -38,7 +42,8 @@ class HTMLReportGeneratorImpl:
             # Specific preprocessing steps for the 'runbooks' dataframe
             # Example: Renaming columns, filtering rows, etc.
             processed_dataframe = self._process_runbooks_dataframe(dataframe)
-        if key == 'comments':
+        elif key == 'comments':
+            print('preprocessing comments')
             processed_dataframe = self._process_comments_dataframe(dataframe)
         
         elif key == 'streams':
@@ -56,6 +61,7 @@ class HTMLReportGeneratorImpl:
         return processed_dataframe
 
     def _process_runbooks_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        print('processing runbooks')
         # Example of processing for 'runbooks' dataframe
         runbooks_column_select = [
 
@@ -201,7 +207,7 @@ class HTMLReportGeneratorImpl:
             html_list = '<ul>' + ''.join([f'<li>{comment}</li>' for comment in comments]) + '</ul>'
             return html_list
         
-        print( dataframe.groupby('runbook_id')['comment_attributes_content'])
+        
         # Group by 'runbook_id' and aggregate 'comment_attributes_content' as HTML list
         processed_df = dataframe.groupby('runbook_id')['comment_attributes_content'].agg(format_comments_as_html_list).reset_index()
 
@@ -213,7 +219,7 @@ class HTMLReportGeneratorImpl:
 
     def _process_folders_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         # Example of processing for 'folders' dataframe
- 
+        print('processing folders')
         name_dict = dataframe.set_index('id')['attributes_name'].to_dict()
 
         merged_folders_df = dataframe.copy()
@@ -256,7 +262,7 @@ class HTMLReportGeneratorImpl:
 
     def _process_streams_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
 
- 
+        print('processing streams')
 
         processed_df = dataframe[dataframe['stream_attributes_name'].isin(['Code installation','Technical certification','Business certification'])].copy()
 
@@ -334,22 +340,67 @@ class HTMLReportGeneratorImpl:
 
 
         processed_df.columns = [f'{col[1].replace(" ", "_")}_{col[0]}' for col in processed_df.columns]
+        
+        print(f'process stream {processed_df.columns}')
 
 
         return processed_df
 
+    def _merge_progressive_dataframes(self, data: dict) -> pd.DataFrame:
+        processed_data = {}
+        for key, value in data.items():
+            if isinstance(value, pd.DataFrame):
+                processed_data[key] = self._preprocess_dataframe(key, value)
+            else:
+                processed_data[key] = value
+                
+        print('processed_data processing done')
+        
 
+        merged_df = None
+        print('starting merge')
+        for key, processed_df in processed_data.items():
+            if key == 'runbooks':
+                merged_df = processed_df.copy()
+                print(f'after merge {key} {merged_df.columns}')
+            elif key == 'folders':
+                if merged_df is not None:
+                    #runbooks_folders_rpt_df = pd.merge(runbooks_rpt_df, folders_rpt_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
+                    print(f'before merge {key} {merged_df.columns}')
+                    merged_df = pd.merge(merged_df, processed_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
+                    print(f'after merge {key} {merged_df.columns}')
+            elif key == 'streams':
+                if merged_df is not None:
+                    #runbooks_folders_streams_rpt_df = pd.merge(runbooks_folders_rpt_df, streams_rpt_df, left_on='id', right_on = 'runbook_id', how='left')
+                    #runbooks_folders_streams_rpt_df.fillna('  ', inplace=True)
+                    print(f'before merge {key} {merged_df.columns}')
+                    #print(processed_df.columns)
+                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = '_runbook_id', how='left')
+                    merged_df.fillna('  ', inplace=True)
+                    print(f'after merge {key} {merged_df.columns}')
+            elif key == 'comments':
+                if merged_df is not None:
+                    print(f'before merge {key} {merged_df.columns}')
+                    #runbooks_folders_streams_comments_rpt_df = pd.merge(runbooks_folders_streams_rpt_df, comments_rpt_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
+                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
+                    
+                    print(f'after merge {key} {merged_df.columns}')
+        return merged_df
 
     def _generate_html_report(self, dataframe: pd.DataFrame) -> str:
         # Actual logic to generate the HTML report using data and template
         # Example implementation
-        html_report = "<html><body>"
-       
+        
+        
+        print(f'generate html {dataframe.columns}')
+        print(f'generate html {dataframe.head}')
        
         folders = dataframe['folder_name'].unique()
-
+        
+        print(f'generate html folders: {folders}')
+        
         html_content = """
-
+        <body> 
         <html>
 
         <head>
@@ -369,6 +420,8 @@ class HTMLReportGeneratorImpl:
             }
 
             .dataframe th, .dataframe td {
+            
+            border-collapse: colapse;
 
             border: 1px solid black;
 
@@ -379,8 +432,10 @@ class HTMLReportGeneratorImpl:
             }
 
             .dataframe th {
+            
+            border-collapse: collapse;
 
-                background-color: #b3d4ff;
+            background-color: #b3d4ff;
 
             }
 
@@ -409,12 +464,14 @@ class HTMLReportGeneratorImpl:
         for folder in folders:
 
             folder_df = dataframe[dataframe['folder_name'] == folder].sort_values(by='subfolder_name')
+            
+            print(f'generate html {folder_df.columns}')
 
             html_content += f'<h2>{folder}</h2>'
 
             html_content += """
 
-            <table border="1" class="dataframe">
+            <table class="dataframe">
 
                 <thread>
 
@@ -491,32 +548,8 @@ class HTMLReportGeneratorImpl:
 
 
         html_content += '</body></html>'
-        return html_report
+        return html_content
     
-    def _merge_progressive_dataframes(self, data: dict) -> pd.DataFrame:
-        processed_data = {}
-        for key, value in data.items():
-            if isinstance(value, pd.DataFrame):
-                processed_data[key] = self._preprocess_dataframe(key, value)
-
-        merged_df = None
-        for key, processed_df in processed_data.items():
-            if key == 'runbooks':
-                merged_df = processed_df.copy()
-            elif key == 'folders':
-                if merged_df is not None:
-                    #runbooks_folders_rpt_df = pd.merge(runbooks_rpt_df, folders_rpt_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
-                    merged_df = pd.merge(merged_df, processed_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
-            elif key == 'streams':
-                if merged_df is not None:
-                    #runbooks_folders_streams_rpt_df = pd.merge(runbooks_folders_rpt_df, streams_rpt_df, left_on='id', right_on = 'runbook_id', how='left')
-                    #runbooks_folders_streams_rpt_df.fillna('  ', inplace=True)
-                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = 'runbook_id', how='left')
-                    merged_df.fillna('  ', inplace=True)
-            elif key == 'comments':
-                if merged_df is not None:
-                    #runbooks_folders_streams_comments_rpt_df = pd.merge(runbooks_folders_streams_rpt_df, comments_rpt_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
-                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
-        return merged_df
+  
 
 

@@ -30,7 +30,7 @@ def main():
     html_report = html_report_generator.generate_report(data)
     with open('final_report.html', 'w') as file:
         file.write(html_report)
-    print(html_report)
+    print('html_report generated')
     #email_sender.send_email('recipient@example.com', 'Report', html_report)
 
 if __name__ == "__main__":
