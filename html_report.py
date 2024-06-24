@@ -188,10 +188,10 @@ class HTMLReportGeneratorImpl:
             timestamp_eastern = timestamp.astimezone(eastern)
         
             # Return the timestamp in a normal datetime string format
-            return timestamp_eastern.strftime("%Y-%B-%d %H:%M")
+            return timestamp_eastern.strftime("%b %d %H:%M")
         
         # List of column names to apply the function to
-        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled']
+        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled', 'runbook_start_actual', 'runbook_end_forecast', 'runbook_end_planned', 'runbook_end_actual']
 
 
         # Apply the function to each column in the DataFrame
