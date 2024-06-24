@@ -7,13 +7,17 @@ from email_sender import EmailSenderImpl
 def main():
     html_report_generator = HTMLReportGeneratorImpl()
     email_sender = EmailSenderImpl()
-    
+   
+       #this is for testing purposes
     
     runbooks_df = pd.read_pickle("C:/Users/kenbu/source/repos/PythonApplication1/runbooks.pkl")
     tasks_df = pd.read_pickle("C:/Users/kenbu/source/repos/PythonApplication1/tasks.pkl")
     comments_df = pd.read_pickle("C:/Users/kenbu/source/repos/PythonApplication1/comments.pkl")
     streams_df = pd.read_pickle("C:/Users/kenbu/source/repos/PythonApplication1/streams.pkl")
     folders_df = pd.read_pickle("C:/Users/kenbu/source/repos/PythonApplication1/folders.pkl")
+    
+ 
+  
 
     
     # Data for the report  
