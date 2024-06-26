@@ -10,11 +10,11 @@ def main():
    
        #this is for testing purposes
     
-    runbooks_df = pd.read_pickle("C:/Users/kenbu/Source/Repos/KenBury/PythonApplication1/runbooks.pkl")
-    tasks_df = pd.read_pickle("C:/Users/kenbu/Source/Repos/KenBury/PythonApplication1/tasks.pkl")
-    comments_df = pd.read_pickle("C:/Users/kenbu/Source/Repos/KenBury/PythonApplication1/comments.pkl")
-    streams_df = pd.read_pickle("C:/Users/kenbu/Source/Repos/KenBury/PythonApplication1/streams.pkl")
-    folders_df = pd.read_pickle("C:/Users/kenbu/Source/Repos/KenBury/PythonApplication1/folders.pkl")
+    runbooks_df = pd.read_pickle("input/runbooks.pkl")
+    tasks_df = pd.read_pickle("input/tasks.pkl")
+    comments_df = pd.read_pickle("input/comments.pkl")
+    streams_df = pd.read_pickle("input/streams.pkl")
+    folders_df = pd.read_pickle("input/folders.pkl")
     
  
     
@@ -28,7 +28,7 @@ def main():
     } 
     # Usage of the HTML report generator and email sender
     html_report = html_report_generator.generate_report(data)
-    with open('final_report.html', 'w') as file:
+    with open('output/final_report.html', 'w') as file:
         file.write(html_report)
     print('html_report generated')
     #email_sender.send_email('recipient@example.com', 'Report', html_report)

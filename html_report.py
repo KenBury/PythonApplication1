@@ -2,11 +2,16 @@
 
 from multiprocessing import Process, process
 from os import path
+from tokenize import Special
+
+from numpy import column_stack
 from base_classes import HTMLReportGenerator
 import pandas as pd
 import pytz
 from datetime import datetime
+from datetime import timedelta
 import re
+import openpyxl
 
 
 
@@ -79,6 +84,8 @@ class HTMLReportGeneratorImpl:
             "attributes_end_forecast",
 
             "attributes_end_planned",
+            
+            "attributes_end_scheduled",
 
             "attributes_end_actual",
 
@@ -119,7 +126,7 @@ class HTMLReportGeneratorImpl:
             "attributes_end_forecast": "runbook_end_forecast",
 
             "attributes_end_planned": "runbook_end_planned",
-
+            "attributes_end_scheduled": "runbook_end_scheduled",
             "attributes_end_actual": "runbook_end_actual",
 
             "meta_tasks_count": "runbook_tasks_count",
@@ -161,6 +168,36 @@ class HTMLReportGeneratorImpl:
 
         processed_df.loc[:, 'CRQ_number'] = processed_df.apply(create_CRQ_number,axis=1)
         
+        def convert_utc_string_to_eastern_datetime(utc_timestamp_str):
+            if not utc_timestamp_str or utc_timestamp_str.lower() == 'none':
+                return None
+            
+            def parse_timestamp(timestamp_str):
+                formats_to_try = ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S']
+            
+                for date_format in formats_to_try:
+                    try:
+                        parsed_date = datetime.strptime(timestamp_str, date_format)
+                        return parsed_date
+                    except ValueError:
+                        pass
+            
+                # Handle case where none of the formats matched
+                raise ValueError("Timestamp format not recognized")
+            
+            datetime_obj = parse_timestamp(utc_timestamp_str)
+            
+            # Set the timezone to UTC
+            datetime_obj = datetime_obj.replace(tzinfo=pytz.UTC)
+            
+            # Convert the timezone to Eastern Time Zone
+            eastern = pytz.timezone('US/Eastern')
+            datetime_eastern = datetime_obj.astimezone(eastern)
+            
+            # Return the datetime object in Eastern Time Zone
+            return datetime_eastern
+
+
         def convert_utc_to_eastern(Z_timestamp_str):
             if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
                 return None
@@ -191,16 +228,57 @@ class HTMLReportGeneratorImpl:
             return timestamp_eastern.strftime("%b %d %H:%M")
         
         # List of column names to apply the function to
-        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled', 'runbook_start_actual', 'runbook_end_forecast', 'runbook_end_planned', 'runbook_end_actual']
+        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled', 'runbook_start_actual', 'runbook_end_forecast', 'runbook_end_planned', 'runbook_end_scheduled', 'runbook_end_actual']
 
 
         # Apply the function to each column in the DataFrame
-        processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_to_eastern)
+        processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_string_to_eastern_datetime)
+        
+        def format_timedelta(td):
+            if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():  
+              total_seconds = int(td.total_seconds())
 
+              days = total_seconds // 86400
+              total_seconds %= 86400
+
+              hours = total_seconds // 3600
+              total_seconds %= 3600
+
+              minutes = total_seconds // 60
+              seconds = total_seconds % 60
+
+              return f"{days} d, {hours} hr, {minutes} min, {seconds} s"
+            else:
+                return ""  
+
+        special_df = processed_df.copy()
+        
+        # Define a lambda function to remove timezone from datetime objects
+        remove_timezone = lambda datetime_obj: datetime_obj.replace(tzinfo=None) if datetime_obj else None
+        
+        # Apply the lambda function to the datetime columns in special_df
+        special_df['runbook_start_planned'] = special_df['runbook_start_planned'].map(remove_timezone)
+        special_df['runbook_start_scheduled'] = special_df['runbook_start_scheduled'].map(remove_timezone)
+        special_df['runbook_start_actual'] = special_df['runbook_start_actual'].map(remove_timezone)
+        special_df['runbook_end_forecast'] = special_df['runbook_end_forecast'].map(remove_timezone)
+        special_df['runbook_end_planned'] = special_df['runbook_end_planned'].map(remove_timezone)
+        special_df['runbook_end_scheduled'] = special_df['runbook_end_scheduled'].map(remove_timezone)
+        special_df['runbook_end_actual'] = special_df['runbook_end_actual'].map(remove_timezone)
+        
+        # Create a new column 'runbook_start_difference' with the time difference
+        special_df['runbook_start_difference'] = special_df['runbook_start_actual'] - special_df['runbook_start_scheduled']
+        special_df['runbook_start_difference'] = special_df['runbook_start_difference'].apply(format_timedelta)
+
+        special_df.to_excel('output/prerunbooks.xlsx')
         
         return processed_df
     
     def _process_comments_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        # Check for empty dataframe and just add expected columns
+        if dataframe.empty:
+            dataframe = pd.DataFrame(columns=['runbook_id','comments'])
+            return dataframe
+        
         # Group by 'runbook_id' and aggregate comments into an unindexed HTML list
         # Define a custom aggregation function to format comments as HTML list
         def format_comments_as_html_list(comments):
