@@ -234,53 +234,58 @@ class HTMLReportGeneratorImpl:
         processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_string_to_eastern_datetime)
         
         def format_timedelta(td):
-            # Extract total number of seconds from the timedelta
-           if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():  
-                total_seconds = int(td.total_seconds())
-        
-                # Calculate the number of whole years
-                years = total_seconds // (365 * 86400)
-                total_seconds %= (365 * 86400)
-        
-                # Calculate the number of whole weeks
-                weeks = total_seconds // (7 * 86400)
-                total_seconds %= (7 * 86400)
-        
-                # Calculate the number of whole days
-                days = total_seconds // 86400
-                total_seconds %= 86400
-        
-                # Calculate the number of whole hours
-                hours = total_seconds // 3600
-                total_seconds %= 3600
-        
-                # Calculate the number of whole minutes
-                minutes = total_seconds // 60
-        
-                # Calculate the number of whole seconds
-                seconds = total_seconds % 60
-        
-                # Create a list of (value, unit) tuples
-                time_units = [
-                    (years, "yr"),
-                    (weeks, "wk"),
-                    (days, "d"),
-                    (hours, "hr"),
-                    (minutes, "min"),
-                    (seconds, "s")
-                ]
-        
-                # Find the first non-zero value
-                for i, (value, unit) in enumerate(time_units):
-                    if value > 0:
-                        first_significant = f"{value} {unit}"
-                        if i + 1 < len(time_units) and time_units[i + 1][0] > 0:
-                            next_significant = f"{time_units[i + 1][0]} {time_units[i + 1][1]}"
-                            return f"{first_significant}, {next_significant}"
-                        return first_significant
-        
-                # If all values are zero (unlikely with valid input), handle gracefully
-                return "0 s" 
+            if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():
+                   # Determine if the timedelta is positive or negative
+                   sign = '+ ' if td.total_seconds() >= 0 else '- '
+                   
+                   # Use the absolute value of the timedelta for calculation
+                   total_seconds = abs(int(td.total_seconds()))
+
+                   # Calculate the number of whole years
+                   years = total_seconds // (365 * 86400)
+                   total_seconds %= (365 * 86400)
+
+                   # Calculate the number of whole months
+                   months = total_seconds // (30 * 86400)
+                   total_seconds %= (30 * 86400)
+
+                   # Calculate the number of whole weeks
+                   weeks = total_seconds // (7 * 86400)
+                   total_seconds %= (7 * 86400)
+
+                   # Calculate the number of whole days
+                   days = total_seconds // 86400
+                   total_seconds %= 86400
+
+                   # Calculate the number of whole hours
+                   hours = total_seconds // 3600
+                   total_seconds %= 3600
+
+                   # Calculate the number of whole minutes
+                   minutes = total_seconds // 60
+
+                   # Calculate the number of whole seconds
+                   seconds = total_seconds % 60
+
+                   # Create a list of (value, unit) tuples with single-character units
+                   time_units = [
+                       (years, "y"),
+                       (months, "m"),
+                       (weeks, "w"),
+                       (days, "d"),
+                       (hours, "h"),
+                       (minutes, "m"),
+                       (seconds, "s")
+                   ]
+
+                   # Find the first non-zero value
+                   for i, (value, unit) in enumerate(time_units):
+                       if value > 0:
+                           first_significant = f"{sign}{value}{unit}"
+                           if i + 1 < len(time_units) and time_units[i + 1][0] > 0:
+                               next_significant = f"{time_units[i + 1][0]}{time_units[i + 1][1]}"
+                               return f"{first_significant} {next_significant}"
+                           return first_significant
 
         special_df = processed_df.copy()
         
