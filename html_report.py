@@ -1,10 +1,6 @@
 # html_report.py
 
-from multiprocessing import Process, process
-from os import path
-from tokenize import Special
-
-from numpy import column_stack
+from numpy import rad2deg
 from base_classes import HTMLReportGenerator
 import pandas as pd
 import pytz
@@ -32,13 +28,13 @@ class HTMLReportGeneratorImpl:
     def _prepare_data(self, data: dict) -> dict:
         prepared_data = {}
         for key, value in data.items():
-            print(f'prepare_data: {key}')
+            #print(f'prepare_data: {key}')
             if isinstance(value, pd.DataFrame):
                 prepared_data[key] = self._preprocess_dataframe(key, value)
             else:
                 prepared_data[key] = value
         
-        print('prepared_data processing done')
+        #print('prepared_data processing done')
         return prepared_data
     
   
@@ -48,7 +44,7 @@ class HTMLReportGeneratorImpl:
             # Example: Renaming columns, filtering rows, etc.
             processed_dataframe = self._process_runbooks_dataframe(dataframe)
         elif key == 'comments':
-            print('preprocessing comments')
+            #print('preprocessing comments')
             processed_dataframe = self._process_comments_dataframe(dataframe)
         
         elif key == 'streams':
@@ -114,7 +110,8 @@ class HTMLReportGeneratorImpl:
         runbooks_column_rename = {
 
             "attributes_name": "runbook_name",
-
+            "attributes_run_type": "runbook_run_type",
+            "attributes_stage": "runbook_stage",
             "attributes_created_at": "runbook_created_at",
 
             "attributes_start_planned": "runbook_start_planned",
@@ -138,6 +135,8 @@ class HTMLReportGeneratorImpl:
  
 
         processed_df = dataframe[runbooks_column_select].rename(columns=runbooks_column_rename)
+
+
         
         def create_http_link(row): return f'<a href="https://bankofamerica.cutover.com/#/app/GBT/runbooks/{row["id"]}/current_version/tasks/dashboard/1" target="_blank">{row["runbook_name"]}</a>'
         
@@ -235,21 +234,53 @@ class HTMLReportGeneratorImpl:
         processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_string_to_eastern_datetime)
         
         def format_timedelta(td):
-            if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():  
-              total_seconds = int(td.total_seconds())
-
-              days = total_seconds // 86400
-              total_seconds %= 86400
-
-              hours = total_seconds // 3600
-              total_seconds %= 3600
-
-              minutes = total_seconds // 60
-              seconds = total_seconds % 60
-
-              return f"{days} d, {hours} hr, {minutes} min, {seconds} s"
-            else:
-                return ""  
+            # Extract total number of seconds from the timedelta
+           if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():  
+                total_seconds = int(td.total_seconds())
+        
+                # Calculate the number of whole years
+                years = total_seconds // (365 * 86400)
+                total_seconds %= (365 * 86400)
+        
+                # Calculate the number of whole weeks
+                weeks = total_seconds // (7 * 86400)
+                total_seconds %= (7 * 86400)
+        
+                # Calculate the number of whole days
+                days = total_seconds // 86400
+                total_seconds %= 86400
+        
+                # Calculate the number of whole hours
+                hours = total_seconds // 3600
+                total_seconds %= 3600
+        
+                # Calculate the number of whole minutes
+                minutes = total_seconds // 60
+        
+                # Calculate the number of whole seconds
+                seconds = total_seconds % 60
+        
+                # Create a list of (value, unit) tuples
+                time_units = [
+                    (years, "yr"),
+                    (weeks, "wk"),
+                    (days, "d"),
+                    (hours, "hr"),
+                    (minutes, "min"),
+                    (seconds, "s")
+                ]
+        
+                # Find the first non-zero value
+                for i, (value, unit) in enumerate(time_units):
+                    if value > 0:
+                        first_significant = f"{value} {unit}"
+                        if i + 1 < len(time_units) and time_units[i + 1][0] > 0:
+                            next_significant = f"{time_units[i + 1][0]} {time_units[i + 1][1]}"
+                            return f"{first_significant}, {next_significant}"
+                        return first_significant
+        
+                # If all values are zero (unlikely with valid input), handle gracefully
+                return "0 s" 
 
         special_df = processed_df.copy()
         
@@ -553,7 +584,7 @@ class HTMLReportGeneratorImpl:
 
                 <thread>
 
-                    <tr><th rowspan="2">CRQ</th><th rowspan="2">Subfolder</th><th colspan="4">Runbook</th>
+                    <tr><th rowspan="2">CRQ</th><th rowspan="2">Subfolder</th><th colspan="5">Runbook</th>
 
                         <th colspan="3">Code installation</th>
 
@@ -563,7 +594,7 @@ class HTMLReportGeneratorImpl:
 
                         <th rowspan="2">Comments</th></tr>
 
-                   <tr><th>Dashboard</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th></tr>
+                   <tr><th>Dashboard</th><th>Stage</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th><th>Start</th><th>End</th><th>Tasks complete</th></tr>
 
                 </thread>
 
@@ -572,6 +603,10 @@ class HTMLReportGeneratorImpl:
             """
 
             for _, row in folder_df.iterrows():
+                runbook_run_type = row['runbook_run_type']
+                runbook_stage = row['runbook_stage']
+                
+
                 runbook_tasks_count = row['runbook_tasks_count']
                 runbook_completed_tasks_count = row['runbook_completed_tasks_count']
                 
@@ -629,6 +664,7 @@ class HTMLReportGeneratorImpl:
                 <td>{row['CRQ_number']}</td>
                 <td>{row['subfolder_name']}</td>
                 <td>{row['runbook_http_link']}</td>
+                <td>{row['runbook_run_type']}<br>{row['runbook_stage']}</td>
                 <td>P:{row['runbook_start_planned']}<br>S:{row['runbook_start_scheduled']}<br>A:{row['runbook_start_actual']}</td>
                 <td>P:{row['runbook_end_planned']}<br>F:{row['runbook_end_forecast']}<br>A:{row['runbook_end_actual']}</td>
                 <td>{tasks_count_display}</td>
