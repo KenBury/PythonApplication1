@@ -1,5 +1,6 @@
 # html_report.py
 
+import code
 from numpy import rad2deg
 from base_classes import HTMLReportGenerator
 import pandas as pd
@@ -619,7 +620,7 @@ class HTMLReportGeneratorImpl:
                 
                 code_installation_tasks_count = row['Code_installation_tasks_count']
                 code_installation_completed_tasks_count = row['Code_installation_completed_tasks_count']
-                code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count==" " else f""
+                code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count and code_installation_completed_tasks_count else f""
                 
                 technical_certification_tasks_count = row['Technical_certification_tasks_count']
                 technical_certification_completed_tasks_count = row['Technical_certification_completed_tasks_count']
