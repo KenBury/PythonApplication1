@@ -278,6 +278,20 @@ class HTMLReportGeneratorImpl:
             dataframe = pd.DataFrame(columns=['runbook_id','comments'])
             return dataframe
         
+        # Define the regex pattern
+        pattern = r'^Failed to receive message Twilio response.*'
+
+        # Apply the logic to filter and remove rows based on the regex match
+        dataframe = dataframe[~dataframe['comment_attributes_content'].apply(lambda x: bool(re.match(pattern, x)))]
+
+        # Reset the index after removing rows
+        dataframe.reset_index(drop=True, inplace=True)
+        
+        # Check for empty dataframe and just add expected columns
+        if dataframe.empty:
+            dataframe = pd.DataFrame(columns=['runbook_id','comments'])
+            return dataframe
+        
         
         # Group by 'runbook_id' and aggregate comments into an unindexed HTML list
         # Define a custom aggregation function to format comments as HTML list
