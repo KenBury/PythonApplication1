@@ -1,11 +1,10 @@
 # html_report.py
 
-import code
-from numpy import rad2deg
+
 from base_classes import HTMLReportGenerator
 import pandas as pd
 import pytz
-from datetime import datetime
+from datetime import date, datetime
 from datetime import timedelta
 import re
 import openpyxl
@@ -20,11 +19,41 @@ class HTMLReportGeneratorImpl:
     def generate_report(self, data: dict) -> str:
         # Generate HTML report using the provided data
         merged_df = self._merge_progressive_dataframes(data)
-        print(f'generate report {merged_df.columns}')
+        #print(f'generate report {merged_df.columns}')
         report = self._generate_html_report(merged_df)
         return report
     
+    def parse_timestamp(self, timestamp_str):
+                formats_to_try = ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S']
+    
+                for date_format in formats_to_try:
+                    try:
+                        parsed_date = datetime.strptime(timestamp_str, date_format)
+                        return parsed_date
+                    except ValueError:
+                        pass
+    
+                # Handle case where none of the formats matched
+                raise ValueError("Timestamp format not recognized")
 
+    
+    def convert_utc_to_eastern_formated(self, Z_timestamp_str):
+            if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
+                return ""
+           
+            timestamp = self.parse_timestamp(Z_timestamp_str)
+            
+        
+            # Set the timezone to UTC
+            timestamp = timestamp.replace(tzinfo=pytz.UTC)
+        
+            # Convert the timezone to Eastern Time Zone
+            eastern = pytz.timezone('US/Eastern')
+            timestamp_eastern = timestamp.astimezone(eastern)
+        
+            # Return the timestamp in a normal datetime string format
+            return timestamp_eastern.strftime("%b %d %H:%M")
+ 
 
     def _prepare_data(self, data: dict) -> dict:
         prepared_data = {}
@@ -47,6 +76,11 @@ class HTMLReportGeneratorImpl:
         elif key == 'comments':
             #print('preprocessing comments')
             processed_dataframe = self._process_comments_dataframe(dataframe)
+            
+        elif key == 'tasks':
+            # Specific preprocessing steps for the 'tasks' dataframe
+            # Example: Calculating additional columns, removing duplicates, etc.
+            processed_dataframe = self._process_tasks_dataframe(dataframe)
         
         elif key == 'streams':
             # Specific preprocessing steps for the 'streams' dataframe
@@ -63,7 +97,7 @@ class HTMLReportGeneratorImpl:
         return processed_dataframe
 
     def _process_runbooks_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
-        print('processing runbooks')
+        #print('processing runbooks')
         # Example of processing for 'runbooks' dataframe
         runbooks_column_select = [
 
@@ -168,71 +202,8 @@ class HTMLReportGeneratorImpl:
 
         processed_df.loc[:, 'CRQ_number'] = processed_df.apply(create_CRQ_number,axis=1)
         
-        def convert_utc_string_to_eastern_datetime(utc_timestamp_str):
-            if not utc_timestamp_str or utc_timestamp_str.lower() == 'none':
-                return None
-            
-            def parse_timestamp(timestamp_str):
-                formats_to_try = ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S']
-            
-                for date_format in formats_to_try:
-                    try:
-                        parsed_date = datetime.strptime(timestamp_str, date_format)
-                        return parsed_date
-                    except ValueError:
-                        pass
-            
-                # Handle case where none of the formats matched
-                raise ValueError("Timestamp format not recognized")
-            
-            datetime_obj = parse_timestamp(utc_timestamp_str)
-            
-            # Set the timezone to UTC
-            datetime_obj = datetime_obj.replace(tzinfo=pytz.UTC)
-            
-            # Convert the timezone to Eastern Time Zone
-            eastern = pytz.timezone('US/Eastern')
-            datetime_eastern = datetime_obj.astimezone(eastern)
-            
-            # Return the datetime object in Eastern Time Zone
-            return datetime_eastern
 
-
-        def convert_utc_to_eastern(Z_timestamp_str):
-            if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
-                return None
-            def parse_timestamp(timestamp_str):
-                formats_to_try = ['%Y-%m-%dT%H:%M:%S.%fZ', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S']
-    
-                for date_format in formats_to_try:
-                    try:
-                        parsed_date = datetime.strptime(timestamp_str, date_format)
-                        return parsed_date
-                    except ValueError:
-                        pass
-    
-                # Handle case where none of the formats matched
-                raise ValueError("Timestamp format not recognized")
-
-            timestamp = parse_timestamp(Z_timestamp_str)
-            
         
-            # Set the timezone to UTC
-            timestamp = timestamp.replace(tzinfo=pytz.UTC)
-        
-            # Convert the timezone to Eastern Time Zone
-            eastern = pytz.timezone('US/Eastern')
-            timestamp_eastern = timestamp.astimezone(eastern)
-        
-            # Return the timestamp in a normal datetime string format
-            return timestamp_eastern.strftime("%b %d %H:%M")
-        
-        # List of column names to apply the function to
-        columns_to_convert = ['runbook_start_planned', 'runbook_start_scheduled', 'runbook_start_actual', 'runbook_end_forecast', 'runbook_end_planned', 'runbook_end_scheduled', 'runbook_end_actual']
-
-
-        # Apply the function to each column in the DataFrame
-        processed_df[columns_to_convert] = processed_df[columns_to_convert].map(convert_utc_string_to_eastern_datetime)
         
         def format_timedelta(td):
             if isinstance(td, timedelta) and not td.total_seconds() != td.total_seconds():
@@ -287,34 +258,26 @@ class HTMLReportGeneratorImpl:
                                next_significant = f"{time_units[i + 1][0]}{time_units[i + 1][1]}"
                                return f"{first_significant} {next_significant}"
                            return first_significant
-
-        special_df = processed_df.copy()
-        
-        # Define a lambda function to remove timezone from datetime objects
-        remove_timezone = lambda datetime_obj: datetime_obj.replace(tzinfo=None) if datetime_obj else None
-        
-        # Apply the lambda function to the datetime columns in special_df
-        special_df['runbook_start_planned'] = special_df['runbook_start_planned'].map(remove_timezone)
-        special_df['runbook_start_scheduled'] = special_df['runbook_start_scheduled'].map(remove_timezone)
-        special_df['runbook_start_actual'] = special_df['runbook_start_actual'].map(remove_timezone)
-        special_df['runbook_end_forecast'] = special_df['runbook_end_forecast'].map(remove_timezone)
-        special_df['runbook_end_planned'] = special_df['runbook_end_planned'].map(remove_timezone)
-        special_df['runbook_end_scheduled'] = special_df['runbook_end_scheduled'].map(remove_timezone)
-        special_df['runbook_end_actual'] = special_df['runbook_end_actual'].map(remove_timezone)
-        
-        # Create a new column 'runbook_start_difference' with the time difference
-        special_df['runbook_start_difference'] = special_df['runbook_start_actual'] - special_df['runbook_start_scheduled']
-        special_df['runbook_start_difference'] = special_df['runbook_start_difference'].apply(format_timedelta)
-
-        special_df.to_excel('output/prerunbooks.xlsx')
+ 
         
         return processed_df
     
     def _process_comments_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        
+        # Define the regex pattern
+        pattern = r'^Failed to receive message Twilio response.*'
+
+        # Apply the logic to filter and remove rows based on the regex match
+        dataframe = dataframe[~dataframe['comment_attributes_content'].apply(lambda x: bool(re.match(pattern, x)))]
+
+        # Reset the index after removing rows
+        dataframe.reset_index(drop=True, inplace=True)
+        
         # Check for empty dataframe and just add expected columns
         if dataframe.empty:
             dataframe = pd.DataFrame(columns=['runbook_id','comments'])
             return dataframe
+        
         
         # Group by 'runbook_id' and aggregate comments into an unindexed HTML list
         # Define a custom aggregation function to format comments as HTML list
@@ -330,11 +293,13 @@ class HTMLReportGeneratorImpl:
             "comment_attributes_content": "comments"
             }
         processed_df = processed_df.rename(columns=comments_column_rename)
+        
+
         return processed_df
 
     def _process_folders_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
         # Example of processing for 'folders' dataframe
-        print('processing folders')
+        #print('processing folders')
         name_dict = dataframe.set_index('id')['attributes_name'].to_dict()
 
         merged_folders_df = dataframe.copy()
@@ -373,11 +338,97 @@ class HTMLReportGeneratorImpl:
         return processed_df
     
 
+    def _process_tasks_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+
+        #print('processing tasks')
+
+        processed_df = dataframe[dataframe['task_attributes_name'].isin(['Start Code installation','End Code installation','Start Technical certification','End Technical certification','Start Business certification','End Business certification'])].copy()
+
+
+
+        tasks_column_select = [
+        
+            "runbook_id",
+        
+            "task_attributes_name",
+        
+            "task_attributes_start_actual",
+        
+            "task_attributes_start_display",
+            "task_attributes_start_planned",
+        
+            "task_attributes_end_planned",
+        
+            "task_attributes_end_actual",
+        
+            "task_attributes_end_display"
+        
+                    ]
+
+ 
+
+ 
+        tasks_column_rename = {
+            
+            "runbook_id": "task_runbook_id",
+        
+            "task_attributes_name": "task_name",
+        
+            "task_attributes_end_actual": "task_end_actual",
+        
+            "task_attributes_end_display": "task_end_display",
+        
+            "task_attributes_end_planned": "task_end_planned",
+        
+            "task_attributes_start_actual": "task_start_actual",
+        
+            "task_attributes_start_display": "task_start_display",
+        
+            "task_attributes_start_planned": "task_start_planned",
+        
+           
+        
+        }
+        
+        processed_df = processed_df[tasks_column_select].rename(columns=tasks_column_rename)
+        
+        tasks_pivot_columns = [
+
+            "task_end_actual",
+
+            "task_end_display",
+
+            "task_end_planned",
+
+            "task_start_actual",
+
+            "task_start_display",
+
+            "task_start_planned"
+
+            ]
+
+
+
+        processed_df = processed_df.pivot(index='task_runbook_id', columns='task_name', values=tasks_pivot_columns).reset_index()
+
+
+
+        processed_df.columns = [f'{col[1].replace(" ", "_")}_{col[0]}' for col in processed_df.columns]
+        
+
+        
+        #print(f'process stream {processed_df.columns}')
+
+
+
+
+        return processed_df
 
 
     def _process_streams_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
 
-        print('processing streams')
+        #print('processing streams')
 
         processed_df = dataframe[dataframe['stream_attributes_name'].isin(['Code installation','Technical certification','Business certification'])].copy()
 
@@ -409,7 +460,9 @@ class HTMLReportGeneratorImpl:
 
  
         streams_column_rename = {
-        
+            
+            "runbook_id": "stream_runbook_id",
+                  
             "stream_attributes_end_display": "end_display",
         
             "stream_attributes_end_latest_planned": "end_latest_planned",
@@ -450,13 +503,13 @@ class HTMLReportGeneratorImpl:
 
 
 
-        processed_df = processed_df.pivot(index='runbook_id', columns='stream_name', values=streams_pivot_columns).reset_index()
+        processed_df = processed_df.pivot(index='stream_runbook_id', columns='stream_name', values=streams_pivot_columns).reset_index()
 
 
 
         processed_df.columns = [f'{col[1].replace(" ", "_")}_{col[0]}' for col in processed_df.columns]
         
-        print(f'process stream {processed_df.columns}')
+        #print(f'processed stream {processed_df.columns}')
 
 
         return processed_df
@@ -469,37 +522,43 @@ class HTMLReportGeneratorImpl:
             else:
                 processed_data[key] = value
                 
-        print('processed_data processing done')
+        #print('processed_data processing done')
         
 
         merged_df = None
-        print('starting merge')
+        #print('starting merge')
         for key, processed_df in processed_data.items():
             if key == 'runbooks':
                 merged_df = processed_df.copy()
-                print(f'after merge {key} {merged_df.columns}')
+                #print(f'after merge {key} {merged_df.columns}')
             elif key == 'folders':
                 if merged_df is not None:
                     #runbooks_folders_rpt_df = pd.merge(runbooks_rpt_df, folders_rpt_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
-                    print(f'before merge {key} {merged_df.columns}')
+                    #print(f'before merge {key} {merged_df.columns}')
                     merged_df = pd.merge(merged_df, processed_df, left_on='relationships_folder_data_id', right_on = 'id', how='left', suffixes=('', '_folder'))
-                    print(f'after merge {key} {merged_df.columns}')
+                    #print(f'after merge {key} {merged_df.columns}')
             elif key == 'streams':
                 if merged_df is not None:
                     #runbooks_folders_streams_rpt_df = pd.merge(runbooks_folders_rpt_df, streams_rpt_df, left_on='id', right_on = 'runbook_id', how='left')
                     #runbooks_folders_streams_rpt_df.fillna('  ', inplace=True)
-                    print(f'before merge {key} {merged_df.columns}')
+                    #print(f'before merge {key} {merged_df.columns}')
                     #print(processed_df.columns)
-                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = '_runbook_id', how='left')
-                    merged_df.fillna('  ', inplace=True)
-                    print(f'after merge {key} {merged_df.columns}')
+                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = '_stream_runbook_id', how='left')
+                    merged_df.fillna('', inplace=True)
+                    #print(f'after merge {key} {merged_df.columns}')
+            elif key == 'tasks':
+                if merged_df is not None:
+                    #print(f'before merge {key} {merged_df.columns}')
+                    #print(processed_df.columns)
+                    merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = '_task_runbook_id', how='left')
+                    #print(f'after merge {key} {merged_df.columns}')
             elif key == 'comments':
                 if merged_df is not None:
-                    print(f'before merge {key} {merged_df.columns}')
+                    #print(f'before merge {key} {merged_df.columns}')
                     #runbooks_folders_streams_comments_rpt_df = pd.merge(runbooks_folders_streams_rpt_df, comments_rpt_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
                     merged_df = pd.merge(merged_df, processed_df, left_on='id', right_on = 'runbook_id', how='left', suffixes=('', '_comment'))
                     
-                    print(f'after merge {key} {merged_df.columns}')
+                    #print(f'after merge {key} {merged_df.columns}')
         return merged_df
 
     def _generate_html_report(self, dataframe: pd.DataFrame) -> str:
@@ -507,12 +566,14 @@ class HTMLReportGeneratorImpl:
         # Example implementation
         
         
-        print(f'generate html {dataframe.columns}')
-        print(f'generate html {dataframe.head}')
+        #print(f'generate html {dataframe.columns}')
+        #print(f'generate html {dataframe.head}')
+        
+        #dataframe.to_excel('output/html_df.xlsx', index=False)
        
         folders = dataframe['folder_name'].unique()
         
-        print(f'generate html folders: {folders}')
+        #print(f'generate html folders: {folders}')
         
         html_content = """
         <body> 
@@ -580,7 +641,7 @@ class HTMLReportGeneratorImpl:
 
             folder_df = dataframe[dataframe['folder_name'] == folder].sort_values(by='subfolder_name')
             
-            print(f'generate html {folder_df.columns}')
+            #print(f'generate html {folder_df.columns}')
 
             html_content += f'<h2>{folder}</h2>'
 
@@ -612,6 +673,12 @@ class HTMLReportGeneratorImpl:
                 runbook_run_type = row['runbook_run_type']
                 runbook_stage = row['runbook_stage']
                 
+                runbook_start_planned = self.convert_utc_to_eastern_formated(row['runbook_start_planned'])
+                runbook_start_actual = self.convert_utc_to_eastern_formated(row['runbook_start_actual'])
+                runbook_end_planned = self.convert_utc_to_eastern_formated(row['runbook_end_planned'])
+                runbook_end_actual = self.convert_utc_to_eastern_formated(row['runbook_end_actual'])
+                runbook_start_display = f"{runbook_start_planned}" if runbook_start_actual != "" else f"{runbook_start_actual}"
+                runbook_end_display = f"{runbook_end_planned}" if runbook_end_actual != "" else f"{runbook_end_actual}"
 
                 runbook_tasks_count = row['runbook_tasks_count']
                 runbook_completed_tasks_count = row['runbook_completed_tasks_count']
@@ -620,73 +687,50 @@ class HTMLReportGeneratorImpl:
                 
                 code_installation_tasks_count = row['Code_installation_tasks_count']
                 code_installation_completed_tasks_count = row['Code_installation_completed_tasks_count']
-                code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count and code_installation_completed_tasks_count else f""
-                
+                code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count != "" and code_installation_completed_tasks_count != "" else f"no stream"
+                #code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count and code_installation_completed_tasks_count else f""
+                start_code_installation_task_start_display = self.convert_utc_to_eastern_formated(row['Start_Code_installation_task_start_display'])
+                code_installation_start_display  = f"{start_code_installation_task_start_display}" if start_code_installation_task_start_display != "" else f"no start task"
+                end_code_installation_task_end_display = self.convert_utc_to_eastern_formated(row['End_Code_installation_task_end_display'])
+                code_installation_end_display  = f"{end_code_installation_task_end_display}" if end_code_installation_task_end_display != "" else f"no end task"
+
                 technical_certification_tasks_count = row['Technical_certification_tasks_count']
                 technical_certification_completed_tasks_count = row['Technical_certification_completed_tasks_count']
-                technical_certification_display = f"{technical_certification_completed_tasks_count}/{technical_certification_tasks_count}" if technical_certification_tasks_count and technical_certification_completed_tasks_count else f""
+                technical_certification_display = f"{technical_certification_completed_tasks_count}/{technical_certification_tasks_count}" if technical_certification_tasks_count != "" and technical_certification_completed_tasks_count != "" else f"no stream"
+                start_technical_certification_task_start_display = self.convert_utc_to_eastern_formated(row['Start_Technical_certification_task_start_display'])
+                technical_certification_start_display  = f"{start_technical_certification_task_start_display}" if start_technical_certification_task_start_display != "" else f"no start task"
+                end_technical_certification_task_end_display = self.convert_utc_to_eastern_formated(row['End_Technical_certification_task_end_display'])
+                technical_certification_end_display  = f"{end_technical_certification_task_end_display}" if end_technical_certification_task_end_display != "" else f"no end task"
                 
                 business_certification_tasks_count = row['Business_certification_tasks_count']
                 business_certification_completed_tasks_count = row['Business_certification_completed_tasks_count']
-                business_certification_display = f"{business_certification_completed_tasks_count}/{business_certification_tasks_count}" if business_certification_tasks_count and business_certification_completed_tasks_count else f""
+                business_certification_display = f"{business_certification_completed_tasks_count}/{business_certification_tasks_count}" if business_certification_tasks_count != "" and business_certification_completed_tasks_count != "" else f"no stream"
+                start_business_certification_task_start_display = self.convert_utc_to_eastern_formated(row['Start_Business_certification_task_start_display'])
+                business_certification_start_display  = f"{start_business_certification_task_start_display}" if start_business_certification_task_start_display != "" else f"no start task"
+                end_business_certification_task_end_display = self.convert_utc_to_eastern_formated(row['End_Business_certification_task_end_display'])
+                business_certification_end_display  = f"{end_business_certification_task_end_display}" if end_business_certification_task_end_display != "" else f"no end task"
                 
-                # Separate list comprehension from join
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Code_installation_start_latest_planned'), ('D', 'Code_installation_start_latest_display')]]
-
-                # Join the formatted values
-                code_installation_start = "".join(formatted_values)
-                
-                # Separate list comprehension from join for code_installation_end
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Code_installation_end_latest_planned'), ('F', 'Code_installation_end_planned'), ('A', 'Code_installation_end_display')]]
-                
-                # Join the formatted values for code_installation_end
-                code_installation_end = "".join(formatted_values)
-                
-                # Separate list comprehension from join for technical_certification_start
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Technical_certification_start_latest_planned'), ('D', 'Technical_certification_start_latest_display')]]
-                
-                # Join the formatted values for technical_certification_start
-                technical_certification_start = "".join(formatted_values)
-                
-                # Separate list comprehension from join for technical_certification_end
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Technical_certification_end_latest_planned'), ('F', 'Technical_certification_end_planned'), ('A', 'Technical_certification_end_display')]]
-                
-                # Join the formatted values for technical_certification_end
-                technical_certification_end = "".join(formatted_values)
-                
-                # Separate list comprehension from join for business_certification_start
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Business_certification_start_latest_planned'), ('D', 'Business_certification_start_latest_display')]]
-                
-                # Join the formatted values for business_certification_start
-                business_certification_start = "".join(formatted_values)
-                
-                # Separate list comprehension from join for business_certification_end
-                formatted_values = [f"{label}:{row.get(column, '')}" for label, column in [('P', 'Business_certification_end_latest_planned'), ('F', 'Business_certification_end_planned'), ('A', 'Business_certification_end_display')]]
-                
-                # Join the formatted values for business_certification_end
-                business_certification_end = "".join(formatted_values)
                 html_content += f"""
                 <tr>
                 <td>{row['CRQ_number']}</td>
                 <td>{row['subfolder_name']}</td>
                 <td>{row['runbook_http_link']}</td>
                 <td>{row['runbook_run_type']}<br>{row['runbook_stage']}</td>
-                <td>P:{row['runbook_start_planned']}<br>S:{row['runbook_start_scheduled']}<br>A:{row['runbook_start_actual']}</td>
-                <td>P:{row['runbook_end_planned']}<br>F:{row['runbook_end_forecast']}<br>A:{row['runbook_end_actual']}</td>
+                <td>{runbook_start_display}</td>
+                <td>{runbook_end_display}</td>
                 <td>{tasks_count_display}</td>
-                <td>P:{row['Code_installation_start_latest_planned']}<br>D:{row['Code_installation_start_latest_display']}</td>
-                <td>P:{row['Code_installation_end_latest_planned']}<br>F:{row['Code_installation_end_planned']}<br>A:{row['Code_installation_end_display']}</td>
+                <td>{code_installation_start_display}</td>
+                <td>{code_installation_end_display}</td>
                 <td>{code_installation_display}</td>
-                <td>P:{row['Technical_certification_start_latest_planned']}<br>D:{row['Technical_certification_start_latest_display']}</td>
-                <td>P:{row['Technical_certification_end_latest_planned']}<br>F:{row['Technical_certification_end_planned']}<br>A:{row['Technical_certification_end_display']}</td>
+                <td>{technical_certification_start_display}</td>
+                <td>{technical_certification_end_display}</td>
                 <td>{technical_certification_display}</td>
-                <td>P:{row['Business_certification_start_latest_planned']}<br>D:{row['Business_certification_start_latest_display']}</td>
-                <td>P:{row['Business_certification_end_latest_planned']}<br>F:{row['Business_certification_end_planned']}<br>A:{row['Business_certification_end_display']}</td>
+                <td>{business_certification_start_display}</td>
+                <td>{business_certification_end_display}</td>
                 <td>{business_certification_display}</td>
                 <td>{row['comments']}</td>
     </tr>
-    """
-
+   """
             html_content += """
 
                 </tbody>
@@ -699,7 +743,9 @@ class HTMLReportGeneratorImpl:
 
 
 
-        html_content += '</body></html>'
+        html_content += f"""Note: The start and end times are in the Eastern Time Zone and may be forecasted if not actual. This report was generated {datetime.now(pytz.timezone('US/Eastern')).strftime("%b %d %H:%M")}
+        </body></html>"""
+        
         return html_content
     
   
