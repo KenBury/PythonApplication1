@@ -569,7 +569,7 @@ class HTMLReportGeneratorImpl:
         #print(f'generate html {dataframe.columns}')
         #print(f'generate html {dataframe.head}')
         
-        #dataframe.to_excel('output/html_df.xlsx', index=False)
+        dataframe.to_excel('output/html_df.xlsx', index=False)
        
         folders = dataframe['folder_name'].unique()
         
@@ -677,8 +677,8 @@ class HTMLReportGeneratorImpl:
                 runbook_start_actual = self.convert_utc_to_eastern_formated(row['runbook_start_actual'])
                 runbook_end_planned = self.convert_utc_to_eastern_formated(row['runbook_end_planned'])
                 runbook_end_actual = self.convert_utc_to_eastern_formated(row['runbook_end_actual'])
-                runbook_start_display = f"{runbook_start_planned}" if runbook_start_actual != "" else f"{runbook_start_actual}"
-                runbook_end_display = f"{runbook_end_planned}" if runbook_end_actual != "" else f"{runbook_end_actual}"
+                runbook_start_display = f"{runbook_start_actual}" if runbook_start_actual != "" else f"{runbook_start_planned}"
+                runbook_end_display = f"{runbook_end_actual}" if runbook_end_actual != "" else f"{runbook_end_planned}"
 
                 runbook_tasks_count = row['runbook_tasks_count']
                 runbook_completed_tasks_count = row['runbook_completed_tasks_count']
