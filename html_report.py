@@ -38,7 +38,7 @@ class HTMLReportGeneratorImpl:
 
     
     def convert_utc_to_eastern_formated(self, Z_timestamp_str):
-            if not Z_timestamp_str or Z_timestamp_str.lower() == 'none':
+            if not Z_timestamp_str != "":
                 return ""
            
             timestamp = self.parse_timestamp(Z_timestamp_str)
@@ -346,8 +346,9 @@ class HTMLReportGeneratorImpl:
     def _process_tasks_dataframe(self, dataframe: pd.DataFrame) -> pd.DataFrame:
 
         #print('processing tasks')
-
-        processed_df = dataframe[dataframe['task_attributes_name'].isin(['Start Code installation','End Code installation','Start Technical certification','End Technical certification','Start Business certification','End Business certification'])].copy()
+        
+        autocomplete_tasks = ['Start Code installation','End Code installation','Start Technical certification','End Technical certification','Start Business certification','End Business certification']
+        processed_df = dataframe[dataframe['task_attributes_name'].isin(autocomplete_tasks)].copy()
 
 
 
@@ -421,9 +422,16 @@ class HTMLReportGeneratorImpl:
 
         processed_df.columns = [f'{col[1].replace(" ", "_")}_{col[0]}' for col in processed_df.columns]
         
+        # Generate all possible combinations by joining elements from autocomplete_tasks and task_pivot_columns
+        column_names_set = {f"{task}_{pivot}" for task in autocomplete_tasks for pivot in tasks_pivot_columns}
+        column_names_set = [column_name.replace(" ", "_") for column_name in column_names_set]
+        # Add missing columns
+        for column_name in column_names_set:
+            if column_name not in processed_df.columns:
+                processed_df[column_name] = ''
 
         
-        #print(f'process stream {processed_df.columns}')
+        print(f'processed tasks columns {processed_df.columns}')
 
 
 
@@ -681,9 +689,17 @@ class HTMLReportGeneratorImpl:
                 runbook_start_planned = self.convert_utc_to_eastern_formated(row['runbook_start_planned'])
                 runbook_start_actual = self.convert_utc_to_eastern_formated(row['runbook_start_actual'])
                 runbook_end_planned = self.convert_utc_to_eastern_formated(row['runbook_end_planned'])
+                runbook_end_forecast = self.convert_utc_to_eastern_formated(row['runbook_end_forecast'])
                 runbook_end_actual = self.convert_utc_to_eastern_formated(row['runbook_end_actual'])
                 runbook_start_display = f"{runbook_start_actual}" if runbook_start_actual != "" else f"{runbook_start_planned}"
-                runbook_end_display = f"{runbook_end_actual}" if runbook_end_actual != "" else f"{runbook_end_planned}"
+                #runbook_end_display = f"{runbook_end_actual}" if runbook_end_actual != "" else f"{runbook_end_planned}"
+                if runbook_end_actual != "":
+                    runbook_end_display = runbook_end_actual
+                elif runbook_end_forecast != "":
+                    runbook_end_display = runbook_end_forecast
+                else:
+                    runbook_end_display = runbook_end_planned
+
 
                 runbook_tasks_count = row['runbook_tasks_count']
                 runbook_completed_tasks_count = row['runbook_completed_tasks_count']
@@ -694,6 +710,8 @@ class HTMLReportGeneratorImpl:
                 code_installation_completed_tasks_count = row['Code_installation_completed_tasks_count']
                 code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count != "" and code_installation_completed_tasks_count != "" else f"no stream"
                 #code_installation_display = f"{code_installation_completed_tasks_count}/{code_installation_tasks_count}" if code_installation_tasks_count and code_installation_completed_tasks_count else f""
+                print(f"{row['id']}")
+                print(f"{row['Start_Code_installation_task_start_display']}")
                 start_code_installation_task_start_display = self.convert_utc_to_eastern_formated(row['Start_Code_installation_task_start_display'])
                 code_installation_start_display  = f"{start_code_installation_task_start_display}" if start_code_installation_task_start_display != "" else f"no start task"
                 end_code_installation_task_end_display = self.convert_utc_to_eastern_formated(row['End_Code_installation_task_end_display'])
